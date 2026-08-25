@@ -40,6 +40,60 @@
 </ul>
 
 <script>
+  import {
+    formatBookmarkDisplay,
+    generateBookmarkSlug,
+    normalizeBookmarkUrl,
+    parseStoredBookmarks
+  } from './bookmarks';
+
+  const STORAGE_KEY = 'mona-bookmarks';
+  /** @type {{url: string; slug: string}[]} */
+  let bookmarks = [];
+
+  function saveBookmarks() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
+  }
+
+  function loadBookmarks() {
+    bookmarks = parseStoredBookmarks(localStorage.getItem(STORAGE_KEY));
+  }
+
+  function renderBookmarks() {
+    const list = document.getElementById('bookmark-list');
+    const listHeader = document.getElementById('list-header');
+    const emptyState = document.getElementById('empty-state');
+    if (!(list instanceof HTMLUListElement) || !listHeader || !emptyState) {
+      return;
+    }
+
+    list.replaceChildren();
+
+    for (const bookmark of bookmarks) {
+      const item = document.createElement('li');
+      item.className = 'bookmark';
+
+      const link = document.createElement('a');
+      link.className = 'url';
+      link.href = bookmark.url;
+      link.target = '_blank';
+      link.rel = 'noreferrer noopener';
+      link.textContent = bookmark.url;
+
+      const slug = document.createElement('span');
+      slug.className = 'slug';
+      slug.textContent = bookmark.slug;
+
+      item.append(link, document.createTextNode(' :: '), slug);
+      item.setAttribute('aria-label', formatBookmarkDisplay(bookmark));
+      list.appendChild(item);
+    }
+
+    const hasBookmarks = bookmarks.length > 0;
+    listHeader.hidden = !hasBookmarks;
+    emptyState.hidden = hasBookmarks;
+  }
+
   // CLIENT-SIDE BOUNDARY — runs in the browser only.
   //
   // TODO (Step 3): implement the bookmarks feature here.
@@ -63,8 +117,45 @@
   // Because this code lives in a client <script>, browser storage APIs are
   // safe to use here without breaking the static build.
   const form = document.getElementById('add-bookmark');
+  const clearAllButton = document.getElementById('clear-all');
+  const urlInput = document.getElementById('url');
+
   form?.addEventListener('submit', (event) => {
-    event.preventDefault(); // keep this — stops the page from reloading
-    // Implement in Step 3.
+    event.preventDefault();
+
+    if (!(urlInput instanceof HTMLInputElement)) {
+      return;
+    }
+
+    const normalizedUrl = normalizeBookmarkUrl(urlInput.value);
+    if (!normalizedUrl) {
+      urlInput.setCustomValidity('Enter a valid URL.');
+      urlInput.reportValidity();
+      return;
+    }
+
+    urlInput.setCustomValidity('');
+
+    const existingSlugs = new Set(bookmarks.map((bookmark) => bookmark.slug));
+    const slug = generateBookmarkSlug(existingSlugs);
+
+    bookmarks = [...bookmarks, { url: normalizedUrl, slug }];
+    saveBookmarks();
+    renderBookmarks();
+    form.reset();
+    urlInput.focus();
   });
+
+  clearAllButton?.addEventListener('click', () => {
+    if (!window.confirm('Remove all saved bookmarks?')) {
+      return;
+    }
+
+    bookmarks = [];
+    saveBookmarks();
+    renderBookmarks();
+  });
+
+  loadBookmarks();
+  renderBookmarks();
 </script>
